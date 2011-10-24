@@ -1,0 +1,63 @@
+#!/usr/bin/zsh
+# This script calls helper functios to find alums who need moving and uid's to
+# move them to. Then it uses ldapmodify to update to the uid value.
+emulate -L zsh
+setopt err_exit
+#setopt xtrace
+
+#function ldapmodify {
+#    #cat
+#}
+#
+#function chown {
+#    #echo $1 $2
+#}
+#
+#function xargs {
+#}
+
+function lemonfaggot {
+    typeset NAME="$1"
+    typeset -i OLD_UID="$2"
+    typeset HOME_DIR="$3"
+    printf "%s, %s--->" "$NAME" "$OLD_UID"
+    typeset -i NEW_UID
+    NEW_UID="$(./locateFreeUID)" || {
+        printf "locateFreeUID encountered an issue, run this on it's own to find out why\n" >&2
+        exit 1
+    }
+    printf " %d\n" $NEW_UID
+
+    ldapmodify -Q <<< "
+dn: uid=$NAME,ou=users,dc=csh,dc=rit,dc=edu
+changetype: modify
+replace: uidNumber
+uidNumber: $NEW_UID
+-
+
+"       || {
+        printf "Problems with ldapmodify, exiting\n" >&2
+        exit 1
+    }
+
+    function dodir {
+        typeset DIR="$1"
+        if [[ -d "$DIR" ]]; then
+            find "$DIR" -user $OLD_UID -print0 | xargs -r -0 chown -h $NEW_UID
+        fi
+    }
+
+    echo "chowning files belonging to $NAME in their home dir"
+    dodir "$HOME_DIR"
+
+    echo "chowning files in /export/mail_domain/indicies"
+    dodir "/export/mail_domain/indices"
+
+    echo "***************************************"
+}
+
+typeset -i OLD_UID
+./listAlums | \
+while IFS=":" read -r NAME ign OLD_UID ign2 ign3 HOME_DIR REPLY; do
+    lemonfaggot "$NAME" "$OLD_UID" "$HOME_DIR"
+done 

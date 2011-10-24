@@ -1,0 +1,35 @@
+#!/usr/bin/bash
+# Pulled verbatum from our create user script,
+# with the following constants
+MINUID=10120
+ECHO=/bin/echo
+
+# I'll add some locking since this borrowed code doesn't have any
+LOCKDIR=/tmp/findFreeUID-lock
+
+# let's start from the minuid constant
+uid=$MINUID
+
+#lock
+if mkdir "${LOCKDIR}" &>/dev/null; then
+# Search till we hit an unused CSH ID
+    while( ldapsearch -Q -LLL "(uidNumber=$uid)" uidNumber | grep "$uid" > /dev/null ); do
+        uid=$((uid+1))
+    done
+    
+    if [ $uid = $MINUID ]; then
+        $ECHO "ERROR: ldapsearch is probably not working on this machine."
+        $ECHO "This is NECESSARY as linear addressing is in place to prevent UID collisions."
+        exit 1
+    else
+        #unlock
+        rm -rf "${LOCKDIR}" 
+        $ECHO -n "$uid"
+    fi
+else
+    echo "Another instance is already running. Please try again later." >&2
+    echo "(Or if last run died a horrible death, remove $LOCKDIR manually)" >&2
+    exit 1
+fi
+
+exit 0

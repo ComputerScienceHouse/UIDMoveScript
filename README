@@ -1,0 +1,2 @@
+This repo holds the script(s) to change batches of users accounts stored in ldap
+which for whatever reason are invalid.
